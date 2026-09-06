@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>재생에너지 x 수전해 결과 뷰어</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#fcfcfb; --surface:#ffffff; --border:#e7e5e1;
+    --text:#0b0b0b; --text-2:#52514e; --text-3:#8a887f;
+    --accent:#2a78d6;
+    --case1:#2a78d6; --case2:#eb6834; --case3:#1baf7a;
+    --good:#1baf7a; --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; padding-bottom:48px;
+  }
+  header{
+    padding:20px 18px 14px; position:sticky; top:0; background:var(--bg);
+    z-index:10; border-bottom:1px solid var(--border);
+  }
+  h1{font-size:19px; margin:0 0 2px; letter-spacing:-.01em;}
+  .sub{color:var(--text-2); font-size:13px; margin:0;}
+  .controls{
+    display:flex; gap:8px; margin-top:14px; flex-wrap:wrap; align-items:center;
+  }
+  .seg{display:flex; background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  .seg button{
+    border:none; background:transparent; padding:9px 16px; font-size:14px; font-weight:600;
+    color:var(--text-2); cursor:pointer;
+  }
+  .seg button.active{background:var(--accent); color:#fff;}
+  .seg button:disabled{opacity:.4; cursor:not-allowed;}
+  select{
+    flex:1; min-width:140px; padding:9px 12px; font-size:15px; border-radius:10px;
+    border:1px solid var(--border); background:var(--surface); color:var(--text);
+  }
+  #runBtn{
+    width:100%; margin-top:12px; padding:14px; font-size:16px; font-weight:700;
+    border:none; border-radius:12px; background:var(--accent); color:#fff; cursor:pointer;
+  }
+  #runBtn:disabled{opacity:.55;}
+  main{padding:16px;}
+  #status{text-align:center; color:var(--text-2); font-size:14px; padding:28px 0;}
+  #spinner{
+    width:26px; height:26px; margin:0 auto 10px; border-radius:50%;
+    border:3px solid var(--border); border-top-color:var(--accent);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .hidden{display:none !important;}
+  .stats{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:18px;}
+  .stat{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:12px 14px;
+  }
+  .stat .k{font-size:12px; color:var(--text-3); margin-bottom:4px;}
+  .stat .v{font-size:19px; font-weight:700; letter-spacing:-.01em;}
+  .stat .v small{font-size:12px; font-weight:500; color:var(--text-2);}
+  .banner{
+    background:linear-gradient(135deg, rgba(27,175,122,.12), rgba(27,175,122,.04));
+    border:1px solid rgba(27,175,122,.35); border-radius:var(--radius);
+    padding:12px 14px; margin-bottom:18px; font-size:14px;
+  }
+  .banner b{color:var(--good);}
+  .card{
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 12px 8px; margin-bottom:16px;
+  }
+  .card h2{font-size:14px; margin:0 0 2px; letter-spacing:-.01em;}
+  .card p.desc{margin:0 0 10px; font-size:12px; color:var(--text-3);}
+  .chart-wrap{position:relative; height:220px;}
+  .chart-wrap.tall{height:260px;}
+  footer{text-align:center; color:var(--text-3); font-size:11px; padding:20px 16px 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>재생에너지 x PEM 수전해 결과 뷰어</h1>
+  <p class="sub">지역과 에너지원을 고르고 확인을 누르면, 그 자리에서 실제로 계산해서 보여드려요.</p>
+  <div class="controls">
+    <div class="seg" id="kindSeg">
+      <button data-kind="태양광" class="active">태양광</button>
+      <button data-kind="풍력" disabled title="풍력 데이터 준비 중">풍력 (준비중)</button>
+    </div>
+    <select id="regionSelect"></select>
+  </div>
+  <button id="runBtn">확인 — 결과 보기</button>
+</header>
+
+<main>
+  <div id="status">
+    <div id="spinner" class="hidden"></div>
+    <div id="statusText">지역을 고르고 확인을 눌러주세요.</div>
+  </div>
+
+  <div id="results" class="hidden">
+    <div class="banner" id="banner"></div>
+
+    <div class="stats" id="statGrid"></div>
+
+    <div class="card">
+      <h2>월별 재생에너지 발전량</h2>
+      <p class="desc">이 지역 태양광/풍력 발전소에서 이 전해조에 배정된 전력 (MWh)</p>
+      <div class="chart-wrap"><canvas id="chartGen"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Case별 연간 수소 생산량</h2>
+      <p class="desc">Case 1: 발전량 직결 · Case 2: ESS 완충 고정운전 · Case 3: 직결+ESS 하이브리드</p>
+      <div class="chart-wrap"><canvas id="chartH2"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Case별 수소 생산단가 (LCOH)</h2>
+      <p class="desc">$/kg-H2, 낮을수록 유리</p>
+      <div class="chart-wrap"><canvas id="chartLcoh"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>LCOH 항목별 구성</h2>
+      <p class="desc">설비비·전기요금 등 비용 항목이 각 Case에서 얼마나 차지하는지</p>
+      <div class="chart-wrap tall"><canvas id="chartBreakdown"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>월별 수소 생산량 비교</h2>
+      <p class="desc">Case별 월간 수소 생산량 (kg)</p>
+      <div class="chart-wrap"><canvas id="chartMonthlyH2"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>전력 사용 구조</h2>
+      <p class="desc">받은 전력 중 실제 생산에 쓰인 비율 vs 버려진 비율(%)</p>
+      <div class="chart-wrap"><canvas id="chartLedger"></canvas></div>
+    </div>
+  </div>
+</main>
+
+<footer>PEM 수전해 x 재생에너지 경제성 모델 · 실시간 계산 데모</footer>
+
+<script>
+const CASE_COLORS = {"Case 1":"#2a78d6", "Case 2":"#eb6834", "Case 3":"#1baf7a"};
+const CASE_ORDER = ["Case 1","Case 2","Case 3"];
+const MONTHS = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"];
+
+let regionsData = {{ regions | tojson }};
+let currentKind = "태양광";
+let charts = {};
+
+const kindSeg = document.getElementById('kindSeg');
+const regionSelect = document.getElementById('regionSelect');
+const runBtn = document.getElementById('runBtn');
+const statusEl = document.getElementById('status');
+const spinner = document.getElementById('spinner');
+const statusText = document.getElementById('statusText');
+const resultsEl = document.getElementById('results');
+
+function populateRegions(kind){
+  regionSelect.innerHTML = '';
+  (regionsData[kind] || []).forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    regionSelect.appendChild(opt);
+  });
+}
+populateRegions(currentKind);
+
+kindSeg.addEventListener('click', (e) => {
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  [...kindSeg.children].forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentKind = btn.dataset.kind;
+  populateRegions(currentKind);
+});
+
+function destroyCharts(){
+  Object.values(charts).forEach(c => c && c.destroy());
+  charts = {};
+}
+
+function baseOpts(extra){
+  return Object.assign({
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{ labels:{ boxWidth:12, font:{size:11} } } },
+    scales:{
+      x:{ grid:{display:false}, ticks:{font:{size:10}} },
+      y:{ grid:{color:'#eeeceac0'}, ticks:{font:{size:10}}, beginAtZero:true }
+    }
+  }, extra || {});
+}
+
+async function runModel(){
+  const region = regionSelect.value;
+  const kind = currentKind;
+  if(!region) return;
+
+  runBtn.disabled = true;
+  resultsEl.classList.add('hidden');
+  statusEl.classList.remove('hidden');
+  spinner.classList.remove('hidden');
+  statusText.textContent = `${region} ${kind} 데이터로 계산 중이에요 (수 초 정도 걸려요)...`;
+
+  try{
+    const res = await fetch(`/api/run?region=${encodeURIComponent(region)}&kind=${encodeURIComponent(kind)}`);
+    const data = await res.json();
+    if(!res.ok){ throw new Error(data.error || '계산 실패'); }
+    render(data);
+  }catch(err){
+    spinner.classList.add('hidden');
+    statusText.textContent = '오류: ' + err.message;
+  }finally{
+    runBtn.disabled = false;
+  }
+}
+
+function render(d){
+  statusEl.classList.add('hidden');
+  resultsEl.classList.remove('hidden');
+  destroyCharts();
+
+  document.getElementById('banner').innerHTML =
+    `<b>${d.region} ${d.kind}</b> 기준 · 최저 생산단가는 <b>${d.best_lcoh_case}</b> ` +
+    `(${d.cases[d.best_lcoh_case].lcoh.toFixed(2)} $/kg) · 최대 생산량은 <b>${d.best_h2_case}</b> ` +
+    `(${d.cases[d.best_h2_case].annual_h2_t.toFixed(1)} t/yr)`;
+
+  const stats = [
+    ["이용률 (CF)", d.capacity_factor_pct.toFixed(1) + "%"],
+    ["연간 발전량", d.e_paid_mwh.toLocaleString() + " <small>MWh</small>"],
+    ["피크 / 평균", d.peak_kw.toLocaleString() + " / " + d.mean_kw.toLocaleString() + " <small>kW</small>"],
+    ["전해조 정격 전류밀도", d.stack.j_rated.toFixed(2) + " <small>A/cm²</small>"],
+  ];
+  document.getElementById('statGrid').innerHTML = stats.map(([k,v]) =>
+    `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+
+  // 1. 월별 발전량
+  charts.gen = new Chart(document.getElementById('chartGen'), {
+    type:'bar',
+    data:{ labels: MONTHS, datasets:[{ label:'발전량 (MWh)', data:d.monthly_gen_mwh,
+      backgroundColor:'#2a78d6', borderRadius:4, maxBarThickness:26 }]},
+    options: baseOpts({ plugins:{ legend:{display:false} } })
+  });
+
+  // 2. Case별 연간 H2
+  charts.h2 = new Chart(document.getElementById('chartH2'), {
+    type:'bar',
+    data:{ labels: CASE_ORDER, datasets:[{ label:'연간 수소생산량 (t)',
+      data: CASE_ORDER.map(c => d.cases[c].annual_h2_t),
+      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:60 }]},
+    options: baseOpts({ plugins:{ legend:{display:false} }, indexAxis:'y' })
+  });
+
+  // 3. Case별 LCOH
+  charts.lcoh = new Chart(document.getElementById('chartLcoh'), {
+    type:'bar',
+    data:{ labels: CASE_ORDER, datasets:[{ label:'LCOH ($/kg)',
+      data: CASE_ORDER.map(c => d.cases[c].lcoh),
+      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:60 }]},
+    options: baseOpts({ plugins:{ legend:{display:false} }, indexAxis:'y' })
+  });
+
+  // 4. LCOH breakdown (stacked)
+  const itemKeys = Object.keys(d.cases["Case 1"].lcoh_items);
+  const stackColors = ['#2a78d6','#eb6834','#1baf7a','#eda100','#e87ba4','#008300','#4a3aa7','#e34948'];
+  charts.breakdown = new Chart(document.getElementById('chartBreakdown'), {
+    type:'bar',
+    data:{
+      labels: CASE_ORDER,
+      datasets: itemKeys.map((key, i) => ({
+        label: key,
+        data: CASE_ORDER.map(c => d.cases[c].lcoh_items[key]),
+        backgroundColor: stackColors[i % stackColors.length],
+        borderRadius:2,
+        maxBarThickness:60,
+      }))
+    },
+    options: baseOpts({
+      scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, beginAtZero:true, grid:{color:'#eeeceac0'}} },
+      plugins:{ legend:{ position:'bottom', labels:{boxWidth:10, font:{size:10}} } }
+    })
+  });
+
+  // 5. 월별 H2 line
+  charts.monthlyH2 = new Chart(document.getElementById('chartMonthlyH2'), {
+    type:'line',
+    data:{
+      labels: MONTHS,
+      datasets: CASE_ORDER.map(c => ({
+        label:c, data:d.cases[c].monthly_h2_kg, borderColor:CASE_COLORS[c],
+        backgroundColor:CASE_COLORS[c], tension:.3, borderWidth:2, pointRadius:2,
+      }))
+    },
+    options: baseOpts({})
+  });
+
+  // 6. 에너지 사용 구조 (stacked, %)
+  const ledgerKeys = [["used","실제 사용"],["curtail","출력제한(낭비)"],["idle","하한미만 정지(낭비)"],["rte","ESS 왕복손실(낭비)"]];
+  const ledgerColors = {used:'#1baf7a', curtail:'#e34948', idle:'#eda100', rte:'#4a3aa7'};
+  charts.ledger = new Chart(document.getElementById('chartLedger'), {
+    type:'bar',
+    data:{
+      labels: CASE_ORDER,
+      datasets: ledgerKeys.map(([key,label]) => ({
+        label, data: CASE_ORDER.map(c => d.cases[c].ledger_pct[key]),
+        backgroundColor: ledgerColors[key], borderRadius:2, maxBarThickness:60,
+      }))
+    },
+    options: baseOpts({
+      indexAxis:'y',
+      scales:{ x:{stacked:true, beginAtZero:true, max:100, grid:{color:'#eeeceac0'}}, y:{stacked:true, grid:{display:false}} },
+      plugins:{ legend:{ position:'bottom', labels:{boxWidth:10, font:{size:10}} } }
+    })
+  });
+}
+
+runBtn.addEventListener('click', runModel);
+</script>
+</body>
+</html>
