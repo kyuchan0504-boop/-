@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>재생에너지 x 수전해 결과 뷰어</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
     --bg:#fcfcfb; --surface:#ffffff; --border:#e7e5e1;
@@ -213,6 +213,8 @@ async function runModel(){
     if(!res.ok){ throw new Error(data.error || '계산 실패'); }
     render(data);
   }catch(err){
+    resultsEl.classList.add('hidden');
+    statusEl.classList.remove('hidden');
     spinner.classList.add('hidden');
     statusText.textContent = '오류: ' + err.message;
   }finally{
@@ -221,6 +223,9 @@ async function runModel(){
 }
 
 function render(d){
+  if(typeof Chart === 'undefined'){
+    throw new Error('그래프 라이브러리를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침 해주세요.');
+  }
   statusEl.classList.add('hidden');
   resultsEl.classList.remove('hidden');
   destroyCharts();
