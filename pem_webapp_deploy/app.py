@@ -37,6 +37,18 @@ DATA_ROOT = os.path.join(BASE_DIR, "data", "지역별 태양광, 풍력")
 # 계산은 항상 한 번에 하나씩만 — 전역변수 경합 방지 (위 설명 참고)
 COMPUTE_LOCK = threading.Lock()
 
+# 풍력 원본 데이터 점검 결과 (2026-09 확인):
+#   - 부산·울산: 발전량이 전부 0 (데이터 자체가 깨져있음) -> 영구 제외
+#   - 강원·경기·경남·경북·인천·전남·전북·충남: 파일명은 "2023_2025"이지만
+#     실제로는 2023년 데이터만 있고(그마저 8,016시간=약 334일, 꽉 채운 1년 아님) 2024~2025년이 없음
+#     -> 그중 경기/인천/충남은 이용률(CF)이 5~10%대로 육상풍력 평균(20~25%대)보다 비정상적으로 낮아 제외
+#     -> 강원/경남/경북/전남/전북 5곳만 CF가 20~30%대로 정상 범위라 "2023년 데이터"라고 명시하고 사용
+#   - 제주: 2023~2025년 다 있지만 2025년 구간만 이용률이 비정상적으로 낮음(3%대) -> 2025 기준으론 제외
+# 태양광은 전부 2025년 기준으로 맞춰서 쓰므로, 풍력만 2023년을 쓴다는 걸 화면에 항상 명시한다 (index.html 참고).
+WIND_OK_REGIONS = ["강원", "경남", "경북", "전남", "전북"]
+WIND_YEAR = 2023
+SOLAR_YEAR = 2025
+
 
 def _nfc(s: str) -> str:
     return unicodedata.normalize("NFC", str(s))
@@ -55,6 +67,8 @@ def scan_regions() -> dict:
             region = base.split("_")[0]
             regions.append(region)
         out[kind] = sorted(set(regions))
+    # 풍력은 데이터 품질이 확인된 5개 지역만 노출 (위 WIND_OK_REGIONS 설명 참고)
+    out["풍력"] = sorted(set(out["풍력"]) & set(WIND_OK_REGIONS))
     return out
 
 
@@ -84,6 +98,8 @@ def run_model(region: str, kind: str) -> dict:
     m.RE_DATA_ROOT = DATA_ROOT
     m.RE_REGION_NAME = region
     m.RE_KIND = kind
+    # 풍력은 정상 데이터가 2023년치뿐이라 그 해로 고정, 태양광은 2025년 기준 유지
+    m.RE_YEAR = WIND_YEAR if kind == "풍력" else SOLAR_YEAR
     m.FIG_DIR = None
     m.SHOW_FIGURES = False
     m.PLOT_DETAIL_FIGURES = False
