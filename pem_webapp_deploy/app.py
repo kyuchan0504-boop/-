@@ -109,6 +109,7 @@ def run_model(region: str, kind: str) -> dict:
                  for k, v in lc["items_usd_per_kg"].items()}
         ledger = r.ledger
         e_paid = max(r.E_paid, 1e-9)
+        hrs = m._production_hours(r, getattr(r, "dt", 1.0) or 1.0)
         cases[name] = {
             "annual_h2_t": round(r.H2_total / 1000.0, 3),
             "lcoh": round(float(lc["LCOH"]), 3),
@@ -125,6 +126,11 @@ def run_model(region: str, kind: str) -> dict:
                 "used": round((ledger["bop"] + ledger["stack"]) / e_paid * 100, 2),
             },
             "monthly_h2_kg": [round(v, 1) for v in _monthly_sum(r.H2_series, months)],
+            "hour_ledger": {
+                "producing": round(hrs["producing"], 0),
+                "idle_with_gen": round(hrs["idle_with_gen"], 0),
+                "no_gen": round(hrs["no_gen"], 0),
+            },
         }
 
     best_lcoh = min(cases.items(), key=lambda kv: kv[1]["lcoh"])
