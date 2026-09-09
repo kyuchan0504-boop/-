@@ -39,6 +39,11 @@
     flex:1; min-width:140px; padding:9px 12px; font-size:15px; border-radius:10px;
     border:1px solid var(--border); background:var(--surface); color:var(--text);
   }
+  .wind-note{
+    margin-top:10px; padding:9px 11px; font-size:12px; line-height:1.5; color:#8a5a00;
+    background:rgba(233,196,106,.22); border:1px solid rgba(233,196,106,.55);
+    border-radius:10px;
+  }
   #runBtn{
     width:100%; margin-top:12px; padding:14px; font-size:16px; font-weight:700;
     border:none; border-radius:12px; background:var(--accent); color:#fff; cursor:pointer;
@@ -119,9 +124,13 @@
   <div class="controls">
     <div class="seg" id="kindSeg">
       <button data-kind="태양광" class="active">태양광</button>
-      <button data-kind="풍력" disabled title="풍력 데이터 준비 중">풍력 (준비중)</button>
+      <button data-kind="풍력">풍력</button>
     </div>
     <select id="regionSelect"></select>
+  </div>
+  <div id="windNote" class="wind-note hidden">
+    ⚠️ 풍력은 정상적인 발전 데이터가 있는 5개 지역만 제공하며, <b>2023년</b> 발전 데이터를 기준으로 계산합니다
+    (태양광은 2025년 기준 — 두 에너지원을 비교할 때 연도가 다르다는 점 참고해주세요).
   </div>
   <button id="runBtn">확인 — 결과 보기</button>
 </header>
@@ -231,6 +240,7 @@ const statusEl = document.getElementById('status');
 const spinner = document.getElementById('spinner');
 const statusText = document.getElementById('statusText');
 const resultsEl = document.getElementById('results');
+const windNote = document.getElementById('windNote');
 
 function populateRegions(kind){
   regionSelect.innerHTML = '';
@@ -249,6 +259,7 @@ kindSeg.addEventListener('click', (e) => {
   btn.classList.add('active');
   currentKind = btn.dataset.kind;
   populateRegions(currentKind);
+  windNote.classList.toggle('hidden', currentKind !== '풍력');
 });
 
 function destroyCharts(){
@@ -306,7 +317,8 @@ function render(d){
   document.getElementById('heroTitle').innerHTML =
     `<b>${d.region} ${d.kind}</b>엔 <b>${bestCase}</b> 방식이 가장 적합해요!`;
   document.getElementById('heroSub').innerHTML =
-    `생산단가 <b>${bc.lcoh.toFixed(2)} $/kg</b> · 연간 수소생산량 <b>${bc.annual_h2_t.toFixed(1)} t/yr</b>`;
+    `생산단가 <b>${bc.lcoh.toFixed(2)} $/kg</b> · 연간 수소생산량 <b>${bc.annual_h2_t.toFixed(1)} t/yr</b> ` +
+    `· ${d.year}년 발전 데이터 기준`;
   document.getElementById('heroEss').innerHTML = (bc.ess_kwh > 0)
     ? `⚡ 추천 ESS 용량: ${bc.ess_kwh.toLocaleString()} kWh`
     : `⚡ ESS 불필요 (재생에너지 직결 운전)`;
@@ -395,4 +407,35 @@ function render(d){
     options: baseOpts({
       indexAxis:'y',
       scales:{ x:{stacked:true, beginAtZero:true, max:100, grid:{color:'#eeeceac0'}}, y:{stacked:true, grid:{display:false}} },
-      plugins:{ legend:{
+      plugins:{ legend:{ position:'bottom', labels:{boxWidth:10, font:{size:10}} } }
+    })
+  });
+
+  // 7. Case별 연간 운전시간대 (도넛 3개)
+  const HOUR_LABELS = ['생산중','대기(발전 있음)','무발전'];
+  const HOUR_COLORS = ['#1baf7a','#e9c46a','#adb5bd'];
+  CASE_ORDER.forEach((c, i) => {
+    const hl = d.cases[c].hour_ledger;
+    const vals = [hl.producing, hl.idle_with_gen, hl.no_gen];
+    const total = vals.reduce((a,b) => a+b, 0) || 1;
+    charts['hour' + (i+1)] = new Chart(document.getElementById('chartHour' + (i+1)), {
+      type:'doughnut',
+      data:{ labels:HOUR_LABELS, datasets:[{ data:vals, backgroundColor:HOUR_COLORS, borderColor:'#fff', borderWidth:2 }] },
+      options:{
+        responsive:true, maintainAspectRatio:false, cutout:'55%',
+        plugins:{
+          legend:{ display:false },
+          tooltip:{ callbacks:{ label:(ctx) =>
+            `${ctx.label}: ${Math.round(ctx.parsed).toLocaleString()} h (${(ctx.parsed/total*100).toFixed(1)}%)` } }
+        }
+      }
+    });
+    document.getElementById('donutHrs' + (i+1)).textContent =
+      `생산 ${Math.round(hl.producing).toLocaleString()} h/yr`;
+  });
+}
+
+runBtn.addEventListener('click', runModel);
+</script>
+</body>
+</html>
