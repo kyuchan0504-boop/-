@@ -95,6 +95,19 @@
   .chart-wrap{position:relative; height:220px;}
   .chart-wrap.tall{height:260px;}
   .chart-wrap.small{height:160px;}
+  .chart-wrap.donut{height:118px;}
+  .donut-row{display:flex; gap:6px; margin-bottom:8px;}
+  .donut-col{flex:1; min-width:0; text-align:center;}
+  .donut-label{font-size:12px; font-weight:800; margin-bottom:2px;}
+  .donut-hrs{font-size:10.5px; color:var(--text-2); margin-top:3px; font-weight:600;}
+  .hour-legend{
+    display:flex; justify-content:center; gap:10px; flex-wrap:wrap;
+    font-size:10.5px; color:var(--text-2); margin-top:2px;
+  }
+  .hour-legend .dot{
+    display:inline-block; width:8px; height:8px; border-radius:50%;
+    margin-right:4px; vertical-align:middle;
+  }
   footer{text-align:center; color:var(--text-3); font-size:11px; padding:20px 16px 0;}
 </style>
 </head>
@@ -169,6 +182,33 @@
       <h2>전력 사용 구조</h2>
       <p class="desc">받은 전력 중 실제 생산에 쓰인 비율 vs 버려진 비율(%)</p>
       <div class="chart-wrap"><canvas id="chartLedger"></canvas></div>
+    </div>
+
+    <div class="card">
+      <h2>Case별 연간 운전시간대</h2>
+      <p class="desc">총 8,760시간 중 수소 생산 / 대기(발전은 있으나 정지) / 무발전 시간 비율</p>
+      <div class="donut-row">
+        <div class="donut-col">
+          <div class="donut-label" style="color:#2a78d6">Case 1</div>
+          <div class="chart-wrap donut"><canvas id="chartHour1"></canvas></div>
+          <div class="donut-hrs" id="donutHrs1"></div>
+        </div>
+        <div class="donut-col">
+          <div class="donut-label" style="color:#eb6834">Case 2</div>
+          <div class="chart-wrap donut"><canvas id="chartHour2"></canvas></div>
+          <div class="donut-hrs" id="donutHrs2"></div>
+        </div>
+        <div class="donut-col">
+          <div class="donut-label" style="color:#1baf7a">Case 3</div>
+          <div class="chart-wrap donut"><canvas id="chartHour3"></canvas></div>
+          <div class="donut-hrs" id="donutHrs3"></div>
+        </div>
+      </div>
+      <div class="hour-legend">
+        <span><i class="dot" style="background:#1baf7a"></i>생산중 (H₂)</span>
+        <span><i class="dot" style="background:#e9c46a"></i>발전 있으나 정지</span>
+        <span><i class="dot" style="background:#adb5bd"></i>무발전 (야간 등)</span>
+      </div>
     </div>
   </div>
 </main>
@@ -355,12 +395,4 @@ function render(d){
     options: baseOpts({
       indexAxis:'y',
       scales:{ x:{stacked:true, beginAtZero:true, max:100, grid:{color:'#eeeceac0'}}, y:{stacked:true, grid:{display:false}} },
-      plugins:{ legend:{ position:'bottom', labels:{boxWidth:10, font:{size:10}} } }
-    })
-  });
-}
-
-runBtn.addEventListener('click', runModel);
-</script>
-</body>
-</html>
+      plugins:{ legend:{
