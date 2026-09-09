@@ -61,20 +61,40 @@
   .stat .k{font-size:12px; color:var(--text-3); margin-bottom:4px;}
   .stat .v{font-size:19px; font-weight:700; letter-spacing:-.01em;}
   .stat .v small{font-size:12px; font-weight:500; color:var(--text-2);}
-  .banner{
-    background:linear-gradient(135deg, rgba(27,175,122,.12), rgba(27,175,122,.04));
-    border:1px solid rgba(27,175,122,.35); border-radius:var(--radius);
-    padding:12px 14px; margin-bottom:18px; font-size:14px;
+  .hero{
+    background:linear-gradient(135deg, #2a78d6, #1baf7a);
+    color:#fff; border-radius:var(--radius);
+    padding:18px 16px; margin-bottom:12px;
+    box-shadow:0 8px 22px rgba(27,120,214,.28);
   }
-  .banner b{color:var(--good);}
+  .hero-badge{
+    display:inline-block; background:rgba(255,255,255,.22);
+    padding:4px 10px; border-radius:999px; font-size:12px; font-weight:800;
+    margin-bottom:9px; letter-spacing:.02em;
+  }
+  .hero-title{font-size:21px; font-weight:800; line-height:1.4; margin-bottom:7px;}
+  .hero-title b{text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:3px;}
+  .hero-sub{font-size:14px; opacity:.95; margin-bottom:12px;}
+  .hero-ess{
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(255,255,255,.2); border:1px solid rgba(255,255,255,.45);
+    border-radius:10px; padding:9px 13px; font-size:14.5px; font-weight:800;
+  }
+  .dual-row{display:flex; gap:10px; margin-bottom:6px;}
+  .scroll-hint{
+    text-align:center; color:var(--text-3); font-size:12px; font-weight:600;
+    margin:2px 0 16px;
+  }
   .card{
     background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
     padding:14px 12px 8px; margin-bottom:16px;
   }
+  .card.half{flex:1; min-width:0; padding:12px 10px 6px; margin-bottom:0;}
   .card h2{font-size:14px; margin:0 0 2px; letter-spacing:-.01em;}
   .card p.desc{margin:0 0 10px; font-size:12px; color:var(--text-3);}
   .chart-wrap{position:relative; height:220px;}
   .chart-wrap.tall{height:260px;}
+  .chart-wrap.small{height:160px;}
   footer{text-align:center; color:var(--text-3); font-size:11px; padding:20px 16px 0;}
 </style>
 </head>
@@ -100,26 +120,37 @@
   </div>
 
   <div id="results" class="hidden">
-    <div class="banner" id="banner"></div>
+    <!-- 1. 결론 — 가장 눈에 띄게 -->
+    <div class="hero" id="hero">
+      <div class="hero-badge">🏆 이 지역 추천 결과</div>
+      <div class="hero-title" id="heroTitle"></div>
+      <div class="hero-sub" id="heroSub"></div>
+      <div class="hero-ess" id="heroEss"></div>
+    </div>
 
+    <!-- 2. Case별 LCOH / 생산량 — 좌우 비교 -->
+    <div class="dual-row">
+      <div class="card half">
+        <h2>Case별 생산단가 (LCOH)</h2>
+        <p class="desc">$/kg-H2 · 낮을수록 유리</p>
+        <div class="chart-wrap small"><canvas id="chartLcoh"></canvas></div>
+      </div>
+      <div class="card half">
+        <h2>Case별 생산량</h2>
+        <p class="desc">연간 수소생산량 (t)</p>
+        <div class="chart-wrap small"><canvas id="chartH2"></canvas></div>
+      </div>
+    </div>
+
+    <div class="scroll-hint">▾ 아래로 내리면 자세한 데이터를 볼 수 있어요</div>
+
+    <!-- 여기부터는 스크롤해서 보는 추가자료 -->
     <div class="stats" id="statGrid"></div>
 
     <div class="card">
       <h2>월별 재생에너지 발전량</h2>
       <p class="desc">이 지역 태양광/풍력 발전소에서 이 전해조에 배정된 전력 (MWh)</p>
       <div class="chart-wrap"><canvas id="chartGen"></canvas></div>
-    </div>
-
-    <div class="card">
-      <h2>Case별 연간 수소 생산량</h2>
-      <p class="desc">Case 1: 발전량 직결 · Case 2: ESS 완충 고정운전 · Case 3: 직결+ESS 하이브리드</p>
-      <div class="chart-wrap"><canvas id="chartH2"></canvas></div>
-    </div>
-
-    <div class="card">
-      <h2>Case별 수소 생산단가 (LCOH)</h2>
-      <p class="desc">$/kg-H2, 낮을수록 유리</p>
-      <div class="chart-wrap"><canvas id="chartLcoh"></canvas></div>
     </div>
 
     <div class="card">
@@ -230,10 +261,15 @@ function render(d){
   resultsEl.classList.remove('hidden');
   destroyCharts();
 
-  document.getElementById('banner').innerHTML =
-    `<b>${d.region} ${d.kind}</b> 기준 · 최저 생산단가는 <b>${d.best_lcoh_case}</b> ` +
-    `(${d.cases[d.best_lcoh_case].lcoh.toFixed(2)} $/kg) · 최대 생산량은 <b>${d.best_h2_case}</b> ` +
-    `(${d.cases[d.best_h2_case].annual_h2_t.toFixed(1)} t/yr)`;
+  const bestCase = d.best_lcoh_case;
+  const bc = d.cases[bestCase];
+  document.getElementById('heroTitle').innerHTML =
+    `<b>${d.region} ${d.kind}</b>엔 <b>${bestCase}</b> 방식이 가장 적합해요!`;
+  document.getElementById('heroSub').innerHTML =
+    `생산단가 <b>${bc.lcoh.toFixed(2)} $/kg</b> · 연간 수소생산량 <b>${bc.annual_h2_t.toFixed(1)} t/yr</b>`;
+  document.getElementById('heroEss').innerHTML = (bc.ess_kwh > 0)
+    ? `⚡ 추천 ESS 용량: ${bc.ess_kwh.toLocaleString()} kWh`
+    : `⚡ ESS 불필요 (재생에너지 직결 운전)`;
 
   const stats = [
     ["이용률 (CF)", d.capacity_factor_pct.toFixed(1) + "%"],
@@ -252,22 +288,22 @@ function render(d){
     options: baseOpts({ plugins:{ legend:{display:false} } })
   });
 
-  // 2. Case별 연간 H2
+  // 2. Case별 연간 H2 (좌우 비교용 — 세로 막대)
   charts.h2 = new Chart(document.getElementById('chartH2'), {
     type:'bar',
     data:{ labels: CASE_ORDER, datasets:[{ label:'연간 수소생산량 (t)',
       data: CASE_ORDER.map(c => d.cases[c].annual_h2_t),
-      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:60 }]},
-    options: baseOpts({ plugins:{ legend:{display:false} }, indexAxis:'y' })
+      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:40 }]},
+    options: baseOpts({ plugins:{ legend:{display:false} } })
   });
 
-  // 3. Case별 LCOH
+  // 3. Case별 LCOH (좌우 비교용 — 세로 막대)
   charts.lcoh = new Chart(document.getElementById('chartLcoh'), {
     type:'bar',
     data:{ labels: CASE_ORDER, datasets:[{ label:'LCOH ($/kg)',
       data: CASE_ORDER.map(c => d.cases[c].lcoh),
-      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:60 }]},
-    options: baseOpts({ plugins:{ legend:{display:false} }, indexAxis:'y' })
+      backgroundColor: CASE_ORDER.map(c => CASE_COLORS[c]), borderRadius:6, maxBarThickness:40 }]},
+    options: baseOpts({ plugins:{ legend:{display:false} } })
   });
 
   // 4. LCOH breakdown (stacked)
